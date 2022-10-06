@@ -43,6 +43,7 @@ class JaxMuseProblem(MuseProblem):
                 step=None,
                 skip_errors=False,
                 use_shine=False,
+                h_inv=None,
             ):
 
                 try:
@@ -50,7 +51,7 @@ class JaxMuseProblem(MuseProblem):
                     cg_kwargs = dict(tol=implicit_diff_cgtol)
 
                     (x, z) = self.sample_x_z(rng, θ)
-                    if z_MAP is None:
+                    if z_MAP is None or (use_shine and h_inv is None):
                         z_MAP_guess = self.z_MAP_guess_from_truth(x, z, θ)
                         z_map_sol = self.z_MAP_and_score(x, z_MAP_guess, θ, method=method, θ_tol=θ_tol, z_tol=z_tol)
                         z_MAP = z_map_sol.z
