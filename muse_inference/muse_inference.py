@@ -31,7 +31,7 @@ class MuseResult():
         self.s_MAP_sims = []
         self.z_MAP_sims = []
         self.Hs = []
-        self.z_hess_inv_approxs = []
+        self.z_hess_inv_approx_sims = []
         self.rng = None
         self.ravel = None
         self.unravel = None
@@ -312,6 +312,7 @@ class MuseProblem():
                     MAP_history_dat, *MAP_history_sims = [MAP.history for MAP in MAPs]
                 s_MAP_dat, *s_MAP_sims = [MAP.s for MAP in MAPs]
                 s̃_MAP_dat, *s̃_MAP_sims = [MAP.s̃ for MAP in MAPs]
+                h_inv_approx_dat, *h_inv_approx_sims = [MAP.h_inv_approx for MAP in MAPs] if self.use_shine else [None for _ in MAPs]
                 s̃_MUSE = self.unravel_θ(self.ravel_θ(s̃_MAP_dat) - np.nanmean(np.stack(list(map(self.ravel_θ, s̃_MAP_sims))), axis=0))
                 s̃_prior, H̃_prior = self.gradθ_hessθ_logPrior(θ̃, transformed_θ=True)
                 s̃_post = self.unravel_θ(self.ravel_θ(s̃_MUSE) + self.ravel_θ(s̃_prior))
@@ -333,7 +334,8 @@ class MuseProblem():
                     "θ_tol": θ_tol,
                     "MAP_history_dat": MAP_history_dat,
                     "MAP_history_sims": MAP_history_sims,
-                    "z_hess_inv_approxs": [MAP.h_inv_approx for MAP in MAPs] if self.use_shine else [None for _ in MAPs],
+                    "z_hess_inv_approx_dat": h_inv_approx_dat,
+                    "z_hess_inv_approx_sims": h_inv_approx_sims,
                 })
 
                 θ̃unreg = self.unravel_θ(self.ravel_θ(θ̃) - α * (np.inner(H̃_inv_post, self.ravel_θ(s̃_post))))
@@ -349,6 +351,7 @@ class MuseProblem():
         result.θ = θunreg
         result.s_MAP_sims = result.history[-1]["s_MAP_sims"]
         _, *result.z_MAP_sims = ẑs
+        result.z_hess_inv_approx_sims = h_inv_approx_sims
 
         if get_covariance:
             self.get_J(
@@ -428,8 +431,8 @@ class MuseProblem():
         return result
 
 
-    def _get_H_i(self, rng, z_MAP_guess_fid, *, θ, method=None, θ_tol=None, z_tol=None, step=None, skip_errors=False):
-
+    def _get_H_i(self, rng, z_MAP_guess_fid, *, θ, method=None, θ_tol=None, z_tol=None, step=None, skip_errors=False, **kwargs):
+        # for now **kwargs very dirty to maintain compat with ID-SHINE
         # for each sim, do one fit at fiducial which we'll
         # reuse as a starting point when fudging θ by +/-ϵ
         θfid = θ
@@ -504,9 +507,9 @@ class MuseProblem():
             t0 = datetime.now()
             rngs = self._split_rng(rng, nsims)[-nsims_remaining:]
             z_MAP_sims = (result.z_MAP_sims + [None]*(max(0, nsims - len(result.z_MAP_sims))))[-nsims_remaining:]
-            z_hess_inv_approxs = (result.z_hess_inv_approxs + [None]*(max(0, nsims - len(result.z_hess_inv_approxs))))[-nsims_remaining:]
+            z_hess_inv_approx_sims = (result.z_hess_inv_approx_sims + [None]*(max(0, nsims - len(result.z_hess_inv_approx_sims))))[-nsims_remaining:]
             _get_H_i = partial(self._get_H_i, θ=θ, method=method, θ_tol=θ_tol, z_tol=z_tol, step=step, skip_errors=skip_errors)
-            result.Hs.extend(H for H in pbar(map(lambda args: _get_H_i(*args[0:2], h_inv=args[2]), zip(rngs, z_MAP_sims, z_hess_inv_approxs)) )if H is not None)
+            result.Hs.extend(H for H in pbar(map(lambda args: _get_H_i(*args[0:2], h_inv=args[2]), zip(rngs, z_MAP_sims, z_hess_inv_approx_sims)) )if H is not None)
             result.time += datetime.now() - t0
 
         avg = np.median if use_median else np.mean
