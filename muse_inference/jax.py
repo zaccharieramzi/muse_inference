@@ -30,8 +30,20 @@ class JaxMuseProblem(MuseProblem):
         self.np = jax.numpy
 
         if implicit_diff:
-            
-            def _get_H_i(self, rng, z_MAP, *, θ, method=None, θ_tol=None, z_tol=None, step=None, skip_errors=False):
+
+            def _get_H_i(
+                self,
+                rng,
+                z_MAP,
+                *,
+                θ,
+                method=None,
+                θ_tol=None,
+                z_tol=None,
+                step=None,
+                skip_errors=False,
+                use_shine=False,
+            ):
 
                 try:
 
@@ -40,7 +52,10 @@ class JaxMuseProblem(MuseProblem):
                     (x, z) = self.sample_x_z(rng, θ)
                     if z_MAP is None:
                         z_MAP_guess = self.z_MAP_guess_from_truth(x, z, θ)
-                        z_MAP = self.z_MAP_and_score(x, z_MAP_guess, θ, method=method, θ_tol=θ_tol, z_tol=z_tol).z
+                        z_map_sol = self.z_MAP_and_score(x, z_MAP_guess, θ, method=method, θ_tol=θ_tol, z_tol=z_tol)
+                        z_MAP = z_map_sol.z
+                        if use_shine:
+                            h_inv = z_map_sol.h_inv_approx
 
                     θ_vec, z_MAP_vec = self.ravel_θ(θ), self.ravel_z(z_MAP)
                     unravel_θ, unravel_z = self.unravel_θ, self.unravel_z
@@ -63,14 +78,20 @@ class JaxMuseProblem(MuseProblem):
                             lambda z: self.logLike(self.sample_x_z(rng, unravel_θ(θ1))[0], unravel_z(z), θ)
                         )(z_MAP_vec)
                     )(θ_vec)
-                    inv_dFdz_dFdθ1 = vmap(
-                        lambda vec: cg(
-                            lambda vec: jvp(lambda z: grad(lambda z: self.logLike(x, unravel_z(z), θ))(z), (z_MAP_vec,), (vec,))[1], 
-                            vec, 
-                            **cg_kwargs
-                        )[0], 
-                        in_axes=1, out_axes=1
-                    )(dFdθ1)
+                    if use_shine:
+                        inv_dFdz_dFdθ1 = vmap(
+                            lambda vec: h_inv @ vec,
+                            in_axes=1, out_axes=1
+                        )(dFdθ1)
+                    else:
+                        inv_dFdz_dFdθ1 = vmap(
+                            lambda vec: cg(
+                                lambda vec: jvp(lambda z: grad(lambda z: self.logLike(x, unravel_z(z), θ))(z), (z_MAP_vec,), (vec,))[1],
+                                vec,
+                                **cg_kwargs
+                            )[0],
+                            in_axes=1, out_axes=1
+                        )(dFdθ1)
                     H2 = -dFdθ.T @ inv_dFdz_dFdθ1
 
                     return H1 + H2
@@ -105,8 +126,8 @@ class JaxMuseProblem(MuseProblem):
             method = "l-bfgs-experimental-do-not-rely-on-this"
 
         soln = minimize(
-            lambda z_vec: -self.logLike(x, self.unravel_z(z_vec), θ), 
-            self.ravel_z(z_guess), 
+            lambda z_vec: -self.logLike(x, self.unravel_z(z_vec), θ),
+            self.ravel_z(z_guess),
             method = method,
             options = options
         )
@@ -115,7 +136,7 @@ class JaxMuseProblem(MuseProblem):
 
         gradθ = self.val_gradz_gradθ_logLike(x, zMAP, θ)[2]
 
-        return ScoreAndMAP(gradθ, gradθ, zMAP, soln)
+        return ScoreAndMAP(gradθ, gradθ, zMAP, soln, soln.hess_inv)
 
     def gradθ_hessθ_logPrior(self, θ, transformed_θ=None):
         g = grad(self.logPrior)(θ)

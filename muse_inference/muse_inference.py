@@ -56,7 +56,7 @@ class MuseResult():
             return "MuseResult()"
 
         σ = self.unravel(np.sqrt(np.diag(self.Σ))) if self.Σ is not None else None
-        
+
         def _repr(θ, σ):
             if isinstance(θ, dict):
                 return "{" + ', '.join(f'{k}={_repr(θ[k], σ[k] if σ is not None else None)}' for k in θ.keys()) + "}"
@@ -66,12 +66,12 @@ class MuseResult():
                 return f"{θ:.3g}" if σ is None else f"{θ:.3g}±{σ:.3g}"
             else:
                 return repr(θ)
-                
+
         return f"MuseResult({_repr(self.θ, σ)})"
 
 
 
-ScoreAndMAP = namedtuple("ScoreAndMAP", "s s̃ z history")
+ScoreAndMAP = namedtuple("ScoreAndMAP", "s s̃ z history h_inv_approx")
 
 class MuseProblem():
 
@@ -117,10 +117,10 @@ class MuseProblem():
         return SeedSequence()
 
     def z_MAP_and_score(
-        self, 
-        x, 
-        z_guess, 
-        θ, 
+        self,
+        x,
+        z_guess,
+        θ,
         method = None,
         options = dict(),
         z_tol = None,
@@ -136,7 +136,7 @@ class MuseProblem():
             method = 'L-BFGS-B'
 
         np = self.np
-                
+
         last_gradθ_logLike = None
         gradθ_logLikes = []
         terminate = False
@@ -153,7 +153,7 @@ class MuseProblem():
             else:
                 logLike, gradz_logLike, last_gradθ_logLike = self.val_gradz_gradθ_logLike(x, self.unravel_z(z_vec), θ̃, transformed_θ=True)
                 return (-logLike, -self.ravel_z(gradz_logLike))
-        
+
         # check if θ-gradient is converged
         def callback(z_vec, *args):
             nonlocal terminate
@@ -162,7 +162,7 @@ class MuseProblem():
                 Δgradθ = gradθ_logLikes[-1] - gradθ_logLikes[-2]
                 if all(np.abs(Δgradθ) < θ_tol):
                     terminate = True
-        
+
         # run optimization
         soln = minimize(objective, self.ravel_z(z_guess), method=method, jac=True, callback=callback, options=options)
 
@@ -274,7 +274,7 @@ class MuseProblem():
                 z0 = self.unravel_z(0 * self.ravel_z(z))
 
         Nθ = len(self.ravel_θ(θ̃))
-        
+
         xz_sims = [self.sample_x_z(_rng, θ) for _rng in self._split_rng(rng, nsims)]
         xs = [self.x] + [x for (x,_) in xz_sims]
         ẑs = [z0]     + [self.z_MAP_guess_from_truth(x, z, θ) for (x, z) in xz_sims]
@@ -282,9 +282,9 @@ class MuseProblem():
         pbar = tqdm(total=(maxsteps-len(result.history))*(nsims+1), desc="MUSE") if progress else None
 
         try:
-            
+
             for i in range((len(result.history)+1), maxsteps+1):
-                
+
                 t0 = datetime.now()
 
                 if i > 1:
@@ -316,20 +316,20 @@ class MuseProblem():
 
                 H̃_inv_like_sims = np.diag(-1 / np.nanvar(np.stack(list(map(self.ravel_θ, s̃_MAP_sims))), axis=0))
                 H̃_inv_post = np.linalg.pinv(np.linalg.pinv(H̃_inv_like_sims) + self.ravel_θ(H̃_prior).reshape(Nθ,Nθ))
-                
+
                 t = datetime.now() - t0
                 result.time += t
 
                 result.history.append({
                     "t":t, "θ̃":θ̃, "θ̃unreg":θ̃unreg, "θ":θ, "θunreg":θunreg,
                     "s_MAP_dat": s_MAP_dat, "s_MAP_sims": s_MAP_sims,
-                    "s̃_MAP_dat": s̃_MAP_dat, "s̃_MAP_sims": s̃_MAP_sims, 
+                    "s̃_MAP_dat": s̃_MAP_dat, "s̃_MAP_sims": s̃_MAP_sims,
                     "s̃_MUSE": s̃_MUSE,
-                    "s̃_prior": s̃_prior, "s̃_post": s̃_post, 
-                    "H̃_inv_post": H̃_inv_post, "H̃_prior": H̃_prior, 
+                    "s̃_prior": s̃_prior, "s̃_post": s̃_post,
+                    "H̃_inv_post": H̃_inv_post, "H̃_prior": H̃_prior,
                     "H̃_inv_like_sims": H̃_inv_like_sims,
                     "θ_tol": θ_tol,
-                    "MAP_history_dat": MAP_history_dat, 
+                    "MAP_history_dat": MAP_history_dat,
                     "MAP_history_sims": MAP_history_sims,
                 })
 
@@ -339,7 +339,7 @@ class MuseProblem():
                 θ = self.inv_transform_θ(θ̃)
 
             if progress: pbar.update(pbar.total - pbar.n)
-        
+
         finally:
             if progress: pbar.close()
 
@@ -349,13 +349,13 @@ class MuseProblem():
 
         if get_covariance:
             self.get_J(
-                result=result, nsims=nsims, 
+                result=result, nsims=nsims,
                 rng=rng, θ_tol=θ_tol, z_tol=z_tol,
                 pmap=pmap, progress=progress,
                 method=method,
             )
             self.get_H(
-                result=result, nsims=max(1,nsims//10), 
+                result=result, nsims=max(1,nsims//10),
                 rng=rng, θ_tol=θ_tol, z_tol=z_tol,
                 pmap=pmap, progress=progress,
                 method=method,
@@ -372,9 +372,9 @@ class MuseProblem():
         z_tol = None,
         method = None,
         rng = None,
-        nsims = 100, 
+        nsims = 100,
         pmap = map,
-        progress = False, 
+        progress = False,
         skip_errors = False,
     ):
 
@@ -393,7 +393,7 @@ class MuseProblem():
 
         if result.ravel is None:
             (result.ravel, result.unravel) = self.ravel_θ, self.unravel_θ
-        
+
         nsims_remaining = nsims - len(result.s_MAP_sims)
 
         if nsims_remaining > 0:
@@ -412,7 +412,7 @@ class MuseProblem():
                     else:
                         raise
                 finally:
-                    if progress: 
+                    if progress:
                         pbar.update()
 
             rngs = self._split_rng(rng, nsims_remaining)
@@ -458,9 +458,9 @@ class MuseProblem():
         θ_tol = None,
         z_tol = None,
         rng = None,
-        nsims = 10, 
+        nsims = 10,
         pmap = map,
-        progress = False, 
+        progress = False,
         skip_errors = False,
         use_median = False
     ):
