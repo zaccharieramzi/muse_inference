@@ -23,9 +23,9 @@ class JaxMuseProblem(MuseProblem):
     def logPrior(self, θ):
         raise NotImplementedError()
 
-    def __init__(self, implicit_diff=True, jit=True, implicit_diff_cgtol=1e-3):
+    def __init__(self, implicit_diff=True, jit=True, implicit_diff_cgtol=1e-3, **kwargs):
 
-        super().__init__()
+        super().__init__(**kwargs)
 
         self.np = jax.numpy
 

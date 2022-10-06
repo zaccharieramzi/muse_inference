@@ -506,7 +506,7 @@ class MuseProblem():
             z_MAP_sims = (result.z_MAP_sims + [None]*(max(0, nsims - len(result.z_MAP_sims))))[-nsims_remaining:]
             z_hess_inv_approxs = (result.z_hess_inv_approxs + [None]*(max(0, nsims - len(result.z_hess_inv_approxs))))[-nsims_remaining:]
             _get_H_i = partial(self._get_H_i, θ=θ, method=method, θ_tol=θ_tol, z_tol=z_tol, step=step, skip_errors=skip_errors)
-            result.Hs.extend(H for H in pbar(map(lambda args: _get_H_i(*args[0:1], h_inv=args[2]), zip(rngs, z_MAP_sims, z_hess_inv_approxs)) )if H is not None)
+            result.Hs.extend(H for H in pbar(map(lambda args: _get_H_i(*args[0:2], h_inv=args[2]), zip(rngs, z_MAP_sims, z_hess_inv_approxs)) )if H is not None)
             result.time += datetime.now() - t0
 
         avg = np.median if use_median else np.mean
