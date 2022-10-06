@@ -76,13 +76,14 @@ ScoreAndMAP = namedtuple("ScoreAndMAP", "s s̃ z history h_inv_approx")
 
 class MuseProblem():
 
-    def __init__(self):
+    def __init__(self, use_shine=False):
         self.x = None
         self._ravel_θ = None
         self._ravel_z = None
         self._unravel_θ = None
         self._unravel_z = None
         self.np = np
+        self.use_shine = use_shine
 
     def sample_x_z(self, θ):
         raise NotImplementedError()
@@ -245,7 +246,6 @@ class MuseProblem():
         checkpoint_filename = None,
         get_covariance = True,
         save_MAP_history = False,
-        use_shine = False,
     ):
 
         np = self.np
@@ -333,7 +333,7 @@ class MuseProblem():
                     "θ_tol": θ_tol,
                     "MAP_history_dat": MAP_history_dat,
                     "MAP_history_sims": MAP_history_sims,
-                    "z_hess_inv_approxs": [MAP.h_inv_approx for MAP in MAPs],
+                    "z_hess_inv_approxs": [MAP.h_inv_approx for MAP in MAPs] if self.use_shine else [None for _ in MAPs],
                 })
 
                 θ̃unreg = self.unravel_θ(self.ravel_θ(θ̃) - α * (np.inner(H̃_inv_post, self.ravel_θ(s̃_post))))
@@ -466,7 +466,6 @@ class MuseProblem():
         progress = False,
         skip_errors = False,
         use_median = False,
-        use_shine = False,
     ):
 
         np = self.np
@@ -506,7 +505,7 @@ class MuseProblem():
             rngs = self._split_rng(rng, nsims)[-nsims_remaining:]
             z_MAP_sims = (result.z_MAP_sims + [None]*(max(0, nsims - len(result.z_MAP_sims))))[-nsims_remaining:]
             z_hess_inv_approxs = (result.z_hess_inv_approxs + [None]*(max(0, nsims - len(result.z_hess_inv_approxs))))[-nsims_remaining:]
-            _get_H_i = partial(self._get_H_i, θ=θ, method=method, θ_tol=θ_tol, z_tol=z_tol, step=step, skip_errors=skip_errors, use_shine=use_shine)
+            _get_H_i = partial(self._get_H_i, θ=θ, method=method, θ_tol=θ_tol, z_tol=z_tol, step=step, skip_errors=skip_errors)
             result.Hs.extend(H for H in pbar(map(lambda args: _get_H_i(*args[0:1], h_inv=args[2]), zip(rngs, z_MAP_sims, z_hess_inv_approxs)) )if H is not None)
             result.time += datetime.now() - t0
 

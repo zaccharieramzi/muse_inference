@@ -42,7 +42,6 @@ class JaxMuseProblem(MuseProblem):
                 z_tol=None,
                 step=None,
                 skip_errors=False,
-                use_shine=False,
                 h_inv=None,
             ):
 
@@ -51,11 +50,11 @@ class JaxMuseProblem(MuseProblem):
                     cg_kwargs = dict(tol=implicit_diff_cgtol)
 
                     (x, z) = self.sample_x_z(rng, θ)
-                    if z_MAP is None or (use_shine and h_inv is None):
+                    if z_MAP is None or (self.use_shine and h_inv is None):
                         z_MAP_guess = self.z_MAP_guess_from_truth(x, z, θ)
                         z_map_sol = self.z_MAP_and_score(x, z_MAP_guess, θ, method=method, θ_tol=θ_tol, z_tol=z_tol)
                         z_MAP = z_map_sol.z
-                        if use_shine:
+                        if self.use_shine:
                             h_inv = z_map_sol.h_inv_approx
 
                     θ_vec, z_MAP_vec = self.ravel_θ(θ), self.ravel_z(z_MAP)
@@ -79,7 +78,7 @@ class JaxMuseProblem(MuseProblem):
                             lambda z: self.logLike(self.sample_x_z(rng, unravel_θ(θ1))[0], unravel_z(z), θ)
                         )(z_MAP_vec)
                     )(θ_vec)
-                    if use_shine:
+                    if self.use_shine:
                         inv_dFdz_dFdθ1 = vmap(
                             lambda vec: h_inv @ vec,
                             in_axes=1, out_axes=1
