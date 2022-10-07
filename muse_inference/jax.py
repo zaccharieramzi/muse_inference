@@ -136,7 +136,8 @@ class JaxMuseProblem(MuseProblem):
         # from jaxopt
         def objective_function(z_vec, x=x, θ=θ):
             return -self.logLike(x, self.unravel_z(z_vec), θ)
-        solver = jaxopt.LBFGS(fun=objective_function, **options)
+        # trying to use the same values as jax.scipy.optimize.lbfgs
+        solver = jaxopt.LBFGS(fun=objective_function, maxls=20, linesearch="backtracking", **options)
         z, lbfgs_state = solver.run(self.ravel_z(z_guess), x=x, θ=θ)
 
         zMAP = self.unravel_z(z)
