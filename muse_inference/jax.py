@@ -137,9 +137,8 @@ class JaxMuseProblem(MuseProblem):
         def objective_function(z_vec, x=x, θ=θ):
             return -self.logLike(x, self.unravel_z(z_vec), θ)
         # trying to use the same values as jax.scipy.optimize.lbfgs
-        solver = jaxopt.LBFGS(fun=objective_function, maxls=20, implicit_diff=False, **options)
+        solver = jaxopt.LBFGS(fun=objective_function, maxls=20, implicit_diff=False, allow_line_search_fail=True, **options)
         z, lbfgs_state = solver.run(self.ravel_z(z_guess), x=x, θ=θ)
-
         zMAP = self.unravel_z(z)
 
         gradθ = self.val_gradz_gradθ_logLike(x, zMAP, θ)[2]
