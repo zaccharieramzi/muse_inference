@@ -82,6 +82,7 @@ class JaxMuseProblem(MuseProblem):
                     )(θ_vec)
                     if self.use_shine:
 
+                        @jax.jit
                         def hess_inv(pytree):
                             h_inv_pytree = inv_hessian_product(
                                 pytree,
